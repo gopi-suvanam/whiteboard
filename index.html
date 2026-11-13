@@ -1,0 +1,391 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+  <meta name="theme-color" content="#ffffff">
+  <title>Scribbler Whiteboard</title>
+  <meta name="description" content="Use whiteboard to store ideas and todo lists on your device privately and securely">
+  <meta property="og:title" content="Scribbler Whiteboard">
+  <meta property="og:description" content="Use whiteboard to store ideas and todo lists on your device privately and securely">
+  <meta property="og:type" content="website">
+
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap">
+
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          fontFamily: {
+            sans: ['Inter', 'ui-sans-serif', 'system-ui', '-apple-system', 'Segoe UI', 'Roboto', 'sans-serif'],
+          },
+          colors: {
+            brand: {
+              50: '#eff6ff',
+              100: '#dbeafe',
+              500: '#2563eb',
+              600: '#1d4ed8',
+              700: '#1e40af',
+            },
+          },
+        },
+      },
+    };
+  </script>
+
+  <style>
+    html, body { height: 100%; overflow: hidden; }
+    body {
+      -webkit-user-select: none;
+      user-select: none;
+      -webkit-tap-highlight-color: transparent;
+      overscroll-behavior: none;
+    }
+    #canvas { touch-action: none; display: block; }
+
+    .no-scrollbar::-webkit-scrollbar { display: none; }
+    .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+
+    /* Custom component styles */
+    .tool-btn {
+      height: 40px;
+      min-width: 40px;
+      padding: 0 10px;
+      border: 1px solid #d1d5db;
+      background: #fff;
+      border-radius: 8px;
+      font-size: 13px;
+      color: #374151;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      transition: background 0.12s, border-color 0.12s, color 0.12s, transform 0.05s;
+      white-space: nowrap;
+      font-family: inherit;
+    }
+    .tool-btn:hover:not(:disabled) {
+      background: #f9fafb;
+      border-color: #9ca3af;
+    }
+    .tool-btn:active:not(:disabled) { transform: scale(0.97); }
+    .tool-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+    .tool-btn.active {
+      background: #2563eb;
+      color: #fff;
+      border-color: #2563eb;
+    }
+    .tool-btn.active:hover { background: #1d4ed8; border-color: #1d4ed8; }
+
+    .btn-primary {
+      height: 40px;
+      padding: 0 18px;
+      background: #2563eb;
+      color: #fff;
+      border: 1px solid #2563eb;
+      border-radius: 8px;
+      cursor: pointer;
+      font-size: 14px;
+      font-weight: 500;
+      font-family: inherit;
+      transition: background 0.12s;
+    }
+    .btn-primary:hover { background: #1d4ed8; }
+    .btn-primary:focus { outline: 2px solid #93c5fd; outline-offset: 2px; }
+
+    .btn-secondary {
+      height: 40px;
+      padding: 0 18px;
+      background: #fff;
+      color: #374151;
+      border: 1px solid #d1d5db;
+      border-radius: 8px;
+      cursor: pointer;
+      font-size: 14px;
+      font-family: inherit;
+      transition: background 0.12s;
+    }
+    .btn-secondary:hover { background: #f9fafb; }
+
+    .color-swatch {
+      width: 40px;
+      height: 40px;
+      border-radius: 50%;
+      border: 2px solid #fff;
+      outline: 1px solid #d1d5db;
+      cursor: pointer;
+      padding: 0;
+      transition: transform 0.1s;
+    }
+    .color-swatch:hover { transform: scale(1.08); }
+    .color-swatch.selected { outline: 2px solid #2563eb; outline-offset: 2px; }
+
+    .size-option {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 8px 12px;
+      border-radius: 6px;
+      cursor: pointer;
+      border: 1px solid transparent;
+      min-height: 40px;
+      font-size: 13px;
+      background: transparent;
+      width: 100%;
+      text-align: left;
+      color: #374151;
+      font-family: inherit;
+    }
+    .size-option:hover { background: #f3f4f6; }
+    .size-option.selected {
+      background: #dbeafe;
+      color: #1d4ed8;
+      border-color: #93c5fd;
+      font-weight: 600;
+    }
+
+    .kbd {
+      display: inline-block;
+      padding: 1px 6px;
+      font-family: ui-monospace, monospace;
+      font-size: 11px;
+      background: #f3f4f6;
+      border: 1px solid #d1d5db;
+      border-radius: 4px;
+      color: #374151;
+      vertical-align: middle;
+    }
+
+    .modal-backdrop { animation: fadeIn 0.12s ease-out; }
+    .modal-panel { animation: scaleIn 0.14s ease-out; }
+    @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+    @keyframes scaleIn {
+      from { opacity: 0; transform: scale(0.96); }
+      to { opacity: 1; transform: scale(1); }
+    }
+
+    .drop-active {
+      outline: 3px dashed #2563eb;
+      outline-offset: -10px;
+      background: #eff6ff;
+    }
+
+    [data-lucide] { width: 1em; height: 1em; }
+  </style>
+</head>
+<body class="font-sans bg-gray-50 text-gray-900">
+
+<div class="h-screen flex flex-col">
+
+  <!-- TOP TOOLBAR -->
+  <header class="bg-white border-b border-gray-200 shadow-sm shrink-0">
+    <div class="flex items-center gap-2 px-3 py-2 overflow-x-auto no-scrollbar">
+
+      <!-- Board management -->
+      <div class="flex items-center gap-1.5 shrink-0">
+        <select id="board-select"
+          class="h-10 px-3 pr-8 border border-gray-300 rounded-lg text-sm bg-white hover:border-gray-400 focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-500/20 max-w-[180px] cursor-pointer"
+          title="Switch board" aria-label="Switch board"></select>
+        <button id="board-new" class="tool-btn" title="New board" aria-label="New board">
+          <i data-lucide="plus" class="w-4 h-4"></i>
+        </button>
+        <button id="board-rename" class="tool-btn" title="Rename board" aria-label="Rename board">
+          <i data-lucide="pencil" class="w-4 h-4"></i>
+        </button>
+        <button id="board-delete" class="tool-btn" title="Delete board" aria-label="Delete board">
+          <i data-lucide="trash-2" class="w-4 h-4"></i>
+        </button>
+      </div>
+
+      <div class="h-7 w-px bg-gray-200 shrink-0"></div>
+
+      <!-- Tools -->
+      <div class="flex items-center gap-1.5 shrink-0">
+        <button id="tool-pen" class="tool-btn active" title="Pen (P)" aria-label="Pen tool">
+          <i data-lucide="pen" class="w-4 h-4"></i>
+          <span class="ml-1.5 hidden md:inline">Pen</span>
+        </button>
+        <button id="tool-eraser" class="tool-btn" title="Eraser (E)" aria-label="Eraser tool">
+          <i data-lucide="eraser" class="w-4 h-4"></i>
+          <span class="ml-1.5 hidden md:inline">Eraser</span>
+        </button>
+        <button id="tool-text" class="tool-btn" title="Text (T)" aria-label="Text tool">
+          <i data-lucide="type" class="w-4 h-4"></i>
+          <span class="ml-1.5 hidden md:inline">Text</span>
+        </button>
+      </div>
+
+      <div class="h-7 w-px bg-gray-200 shrink-0"></div>
+
+      <!-- Color & Size -->
+      <div class="flex items-center gap-1.5 shrink-0">
+        <button id="color-btn" class="tool-btn" title="Color" aria-label="Pick color">
+          <span id="color-preview" class="block w-5 h-5 rounded-full border-2 border-white ring-1 ring-gray-300" style="background:#000"></span>
+        </button>
+        <button id="size-btn" class="tool-btn" title="Size" aria-label="Pick size">
+          <span id="size-preview" class="block rounded-full bg-gray-700" style="width:14px;height:14px;"></span>
+          <span id="size-label" class="ml-1.5 hidden md:inline text-xs text-gray-500">4 px</span>
+        </button>
+      </div>
+
+      <!-- Right side: save status + help -->
+      <div class="ml-auto flex items-center gap-2 shrink-0">
+        <span id="save-indicator" class="text-xs text-gray-400 hidden sm:inline">Saved</span>
+        <button id="help-btn" class="tool-btn" title="Help" aria-label="Help">
+          <i data-lucide="help-circle" class="w-4 h-4"></i>
+        </button>
+      </div>
+
+    </div>
+  </header>
+
+  <!-- CANVAS -->
+  <main class="flex-1 relative bg-white overflow-hidden" id="canvas-wrap">
+    <canvas id="canvas" class="block w-full h-full"></canvas>
+
+    <!-- Empty state hint -->
+    <div id="empty-hint" class="hidden absolute inset-0 flex items-center justify-center pointer-events-none">
+      <div class="text-center text-gray-300 select-none">
+        <i data-lucide="pen-tool" class="w-16 h-16 mx-auto mb-3 opacity-50" style="width:64px;height:64px;"></i>
+        <p class="text-lg font-medium">Start drawing</p>
+        <p class="text-sm mt-1">Long-press or double-click to add text · Drop a <code>.wb</code> file to import</p>
+      </div>
+    </div>
+
+    <!-- Cursor preview circle -->
+    <div id="cursor-preview" class="hidden absolute pointer-events-none rounded-full border-2"
+         style="border-color: rgba(37, 99, 235, 0.5); box-shadow: 0 0 0 1px rgba(255,255,255,0.7) inset;"></div>
+  </main>
+
+  <!-- BOTTOM TOOLBAR -->
+  <footer class="bg-white border-t border-gray-200 shrink-0">
+    <div class="flex items-center justify-center gap-2 px-3 py-2 overflow-x-auto no-scrollbar">
+      <button id="undo" class="tool-btn" title="Undo (Ctrl+Z)" aria-label="Undo">
+        <i data-lucide="undo-2" class="w-4 h-4"></i>
+        <span class="ml-1.5 hidden md:inline">Undo</span>
+      </button>
+      <button id="redo" class="tool-btn" title="Redo (Ctrl+Y)" aria-label="Redo">
+        <i data-lucide="redo-2" class="w-4 h-4"></i>
+        <span class="ml-1.5 hidden md:inline">Redo</span>
+      </button>
+      <div class="h-7 w-px bg-gray-200"></div>
+      <button id="clear" class="tool-btn" title="Clear board" aria-label="Clear board">
+        <i data-lucide="trash" class="w-4 h-4"></i>
+        <span class="ml-1.5 hidden md:inline">Clear</span>
+      </button>
+      <div class="h-7 w-px bg-gray-200"></div>
+      <button id="download" class="tool-btn" title="Download .wb" aria-label="Download">
+        <i data-lucide="download" class="w-4 h-4"></i>
+        <span class="ml-1.5 hidden md:inline">Download</span>
+      </button>
+      <button id="upload" class="tool-btn" title="Upload .wb" aria-label="Upload">
+        <i data-lucide="upload" class="w-4 h-4"></i>
+        <span class="ml-1.5 hidden md:inline">Upload</span>
+      </button>
+      <input type="file" id="file-input" accept=".wb,application/json" class="hidden">
+    </div>
+  </footer>
+
+</div>
+
+<!-- COLOR POPUP -->
+<div id="color-popup" class="hidden fixed bg-white border border-gray-200 rounded-xl shadow-2xl p-3 z-40 max-w-[92vw]">
+  <div class="grid grid-cols-4 gap-2 mb-3" id="color-grid"></div>
+  <label class="flex items-center gap-2 text-xs text-gray-600">
+    <span>Custom</span>
+    <input type="color" id="custom-color" value="#000000"
+      class="flex-1 h-9 border border-gray-300 rounded cursor-pointer bg-white" style="padding:2px;">
+  </label>
+</div>
+
+<!-- SIZE POPUP -->
+<div id="size-popup" class="hidden fixed bg-white border border-gray-200 rounded-xl shadow-2xl p-2 z-40 min-w-[170px] max-w-[92vw]">
+  <div id="size-options" class="flex flex-col gap-1"></div>
+</div>
+
+<!-- TEXT MODAL -->
+<div id="text-overlay" class="hidden fixed inset-0 bg-black/50 modal-backdrop items-center justify-center z-50 p-4">
+  <div class="modal-panel bg-white rounded-xl shadow-2xl w-full max-w-md p-5 flex flex-col gap-4">
+    <h2 class="text-lg font-semibold">Add Text</h2>
+    <textarea id="text-input" rows="3" placeholder="Enter text..."
+      class="w-full border border-gray-300 rounded-lg px-3 py-2 text-base focus:outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-500/20 resize-none font-sans"></textarea>
+    <label class="flex items-center gap-3 text-sm text-gray-700">
+      <span>Font size</span>
+      <select id="text-font-size" class="h-10 border border-gray-300 rounded-lg px-3 text-sm bg-white">
+        <option value="12">12</option>
+        <option value="16">16</option>
+        <option value="20">20</option>
+        <option value="24" selected>24</option>
+        <option value="32">32</option>
+        <option value="48">48</option>
+        <option value="64">64</option>
+      </select>
+    </label>
+    <div class="flex justify-end gap-2 mt-1">
+      <button id="text-cancel" class="btn-secondary">Cancel</button>
+      <button id="text-ok" class="btn-primary">OK</button>
+    </div>
+  </div>
+</div>
+
+<!-- PROMPT MODAL -->
+<div id="prompt-overlay" class="hidden fixed inset-0 bg-black/50 modal-backdrop items-center justify-center z-50 p-4">
+  <div class="modal-panel bg-white rounded-xl shadow-2xl w-full max-w-md p-5 flex flex-col gap-4">
+    <h2 class="text-lg font-semibold" id="prompt-message"></h2>
+    <input type="text" id="prompt-input"
+      class="w-full border border-gray-300 rounded-lg px-3 py-2 text-base focus:outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-500/20 font-sans">
+    <div class="flex justify-end gap-2">
+      <button id="prompt-cancel" class="btn-secondary">Cancel</button>
+      <button id="prompt-ok" class="btn-primary">OK</button>
+    </div>
+  </div>
+</div>
+
+<!-- CONFIRM MODAL -->
+<div id="confirm-overlay" class="hidden fixed inset-0 bg-black/50 modal-backdrop items-center justify-center z-50 p-4">
+  <div class="modal-panel bg-white rounded-xl shadow-2xl w-full max-w-md p-5 flex flex-col gap-4">
+    <h2 class="text-lg font-semibold" id="confirm-message"></h2>
+    <div class="flex justify-end gap-2">
+      <button id="confirm-no" class="btn-secondary">No</button>
+      <button id="confirm-yes" class="btn-primary">Yes</button>
+    </div>
+  </div>
+</div>
+
+<!-- HELP MODAL -->
+<div id="help-overlay" class="hidden fixed inset-0 bg-black/50 modal-backdrop items-center justify-center z-50 p-4">
+  <div class="modal-panel bg-white rounded-xl shadow-2xl w-full max-w-lg p-5 flex flex-col gap-3">
+    <div class="flex items-center justify-between">
+      <h2 class="text-lg font-semibold">Shortcuts &amp; Tips</h2>
+      <button id="help-close" class="text-gray-400 hover:text-gray-700 p-1 rounded">
+        <i data-lucide="x" class="w-5 h-5"></i>
+      </button>
+    </div>
+    <div class="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-2 text-sm text-gray-700">
+      <div><kbd class="kbd">P</kbd> Pen tool</div>
+      <div><kbd class="kbd">E</kbd> Eraser tool</div>
+      <div><kbd class="kbd">T</kbd> Text tool</div>
+      <div><kbd class="kbd">Ctrl</kbd>+<kbd class="kbd">Z</kbd> Undo</div>
+      <div><kbd class="kbd">Ctrl</kbd>+<kbd class="kbd">Y</kbd> Redo</div>
+      <div><kbd class="kbd">Esc</kbd> Close dialog</div>
+      <div class="sm:col-span-2 text-xs text-gray-500 mt-1">
+        Long-press (500ms) or double-click on canvas to add text. Drag a <code>.wb</code> file onto the canvas to import.
+      </div>
+    </div>
+    <div class="flex justify-end mt-2">
+      <button id="help-ok" class="btn-primary">Got it</button>
+    </div>
+  </div>
+</div>
+
+<!-- TOAST -->
+<div id="toast"
+  class="hidden fixed bottom-20 left-1/2 -translate-x-1/2 bg-gray-900/95 text-white text-sm px-4 py-2.5 rounded-lg shadow-lg z-[100] max-w-[90vw] text-center pointer-events-none"></div>
+
+<script src="https://unpkg.com/lucide@0.453.0/dist/umd/lucide.min.js"></script>
+<script src="app.js"></script>
+</body>
+</html>
